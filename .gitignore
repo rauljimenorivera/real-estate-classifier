@@ -1,0 +1,30 @@
+# entorno
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# datos (no subir al repo)
+data/raw/
+data/processed/
+
+# modelos entrenados
+*.pt
+*.pth
+*.onnx
+
+# wandb
+wandb/
+
+# jupyter
+.ipynb_checkpoints/
+
+# IDEs
+.venv/
+.cursor/
+.vscode/
+*.code-workspace
+
+# variables de entorno
+.env
