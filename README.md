@@ -31,6 +31,7 @@ Bedroom, Coast, Forest, Highway, Industrial, Inside city, Kitchen, Living room, 
 - `notebooks/02_training_experiments.ipynb`: interactive training + W&B
 - `notebooks/03_model_selection_eval.ipynb`: model comparison and test evaluation
 - `notebooks/04_inference_api_test.ipynb`: local inference + API test
+- `tareas.md`: coordinación del equipo, pendientes del enunciado y reparto de tareas
 
 ## Setup
 
@@ -53,6 +54,8 @@ uv run python src/prepare_data.py
 ```bash
 uv run python src/train.py --config configs/base_config.yaml
 ```
+
+Para ajustar batch/epochs según GPU, usa por ejemplo `configs/experiments/gtx1650.yaml` o `configs/experiments/rtx3070.yaml` en lugar de `base_config.yaml`.
 
 3) Run API:
 
@@ -78,24 +81,22 @@ uv run streamlit run app/app.py
 
 3) Keep API and Streamlit consuming `artifacts/best_model.pth`.
 
-## Team split (2 people)
+## Team split (4 people)
 
-- Raul (GTX 1650):
-  - runs `configs/experiments/gtx1650.yaml`
-  - owns notebooks `01` and `04`
-  - validates data, API, and integration
-- Natalia (RTX 3070):
-  - runs `configs/experiments/rtx3070.yaml`
-  - owns notebooks `02` and `03`
-  - performs longer experiments and model selection
+Detalle y checklist de entrega: ver [`tareas.md`](tareas.md).
 
-## Team workflow (2-3 people)
+| Persona | Rol principal |
+|--------|----------------|
+| Raúl (GTX) | Notebooks `01`, `04`; `gtx1650.yaml`; EDA e integración API/Streamlit |
+| Natalia (RTX) | Notebooks `02`, `03`; `rtx3070.yaml`; experimentos largos y modelo final en W&B |
+| Sofía | Diseño de experimentos W&B, análisis por clase, UX Streamlit y mensajes API |
+| Marta | Informe (6 pág.), README operativo, capturas Swagger, enlaces y entrega formal |
 
-- ML/Data: data pipeline + augmentations + quality checks
-- Training/W&B: experiments + hyperparameter tuning + model selection
-- Product/API/UI: FastAPI + Streamlit + end-to-end tests
+## Team workflow
 
-All merges should be done through small PRs with reproducible run references in W&B.
+- Commits pequeños y frecuentes en `main`; avisar si dos personas editan el mismo notebook a la vez.
+- Runs “oficiales” referenciados en W&B (nombre del run + config usada).
+- Datos y `artifacts/` locales: no commitear (ver `.gitignore`).
 
 ## Delivery checklist (phase 1)
 
