@@ -3,6 +3,8 @@ entity: rauljr  # cambiar por el del equipo
 
 data:
   data_dir: data/processed
+  raw_training_dir: data/raw/dataset/training
+  raw_validation_dir: data/raw/dataset/validation
   num_classes: 15
   image_size: 224
   batch_size: 32
@@ -21,6 +23,8 @@ training:
   epochs: 30
   learning_rate: 1e-4
   weight_decay: 1e-4
+  seed: 42
+  save_dir: artifacts
   scheduler: cosine  # opciones: cosine, step, none
   early_stopping_patience: 5
 

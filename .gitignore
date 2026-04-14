@@ -13,6 +13,7 @@ data/processed/
 *.pt
 *.pth
 *.onnx
+artifacts/
 
 # wandb
 wandb/
@@ -28,3 +29,6 @@ wandb/
 
 # variables de entorno
 .env
+
+# logs
+tea_debug.log
