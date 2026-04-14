@@ -1,0 +1,33 @@
+project_name: real-estate-classifier
+entity: 202529987-universidad-pontificia-comillas
+
+data:
+  data_dir: data/processed
+  raw_training_dir: data/raw/dataset/training
+  raw_validation_dir: data/raw/dataset/validation
+  num_classes: 15
+  image_size: 224
+  batch_size: 16
+  num_workers: 2
+  train_split: 0.7
+  val_split: 0.15
+  test_split: 0.15
+
+model:
+  backbone: efficientnet_b0
+  pretrained: true
+  dropout: 0.3
+  freeze_backbone: false
+
+training:
+  epochs: 10
+  learning_rate: 1e-4
+  weight_decay: 1e-4
+  seed: 42
+  save_dir: artifacts
+  scheduler: cosine
+  early_stopping_patience: 3
+
+hardware:
+  device: cuda
+  mixed_precision: true

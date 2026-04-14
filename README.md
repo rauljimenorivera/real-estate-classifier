@@ -25,6 +25,12 @@ Bedroom, Coast, Forest, Highway, Industrial, Inside city, Kitchen, Living room, 
 - `api/main.py`: FastAPI inference API
 - `app/app.py`: Streamlit UI
 - `configs/base_config.yaml`: base config for training and data
+- `configs/experiments/gtx1650.yaml`: fast config for Raul
+- `configs/experiments/rtx3070.yaml`: full config for Natalia
+- `notebooks/01_data_prep_eda.ipynb`: data prep and class distribution checks
+- `notebooks/02_training_experiments.ipynb`: interactive training + W&B
+- `notebooks/03_model_selection_eval.ipynb`: model comparison and test evaluation
+- `notebooks/04_inference_api_test.ipynb`: local inference + API test
 
 ## Setup
 
@@ -39,26 +45,49 @@ uv sync
 1) Prepare processed splits:
 
 ```bash
-python src/prepare_data.py
+uv run python src/prepare_data.py
 ```
 
 2) Train + track in W&B:
 
 ```bash
-python src/train.py --config configs/base_config.yaml
+uv run python src/train.py --config configs/base_config.yaml
 ```
 
 3) Run API:
 
 ```bash
-uvicorn api.main:app --reload
+uv run uvicorn api.main:app --reload
 ```
 
 4) Run Streamlit:
 
 ```bash
-streamlit run app/app.py
+uv run streamlit run app/app.py
 ```
+
+## Notebook-first workflow
+
+1) Run notebooks in order:
+- `01_data_prep_eda.ipynb`
+- `02_training_experiments.ipynb`
+- `03_model_selection_eval.ipynb`
+- `04_inference_api_test.ipynb`
+
+2) Promote stable logic to `src/real_estate_ml/*`.
+
+3) Keep API and Streamlit consuming `artifacts/best_model.pth`.
+
+## Team split (2 people)
+
+- Raul (GTX 1650):
+  - runs `configs/experiments/gtx1650.yaml`
+  - owns notebooks `01` and `04`
+  - validates data, API, and integration
+- Natalia (RTX 3070):
+  - runs `configs/experiments/rtx3070.yaml`
+  - owns notebooks `02` and `03`
+  - performs longer experiments and model selection
 
 ## Team workflow (2-3 people)
 
