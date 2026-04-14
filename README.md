@@ -4,12 +4,37 @@ Automatic classification of real-estate images using transfer learning.
 
 Built for a simulated marketplace use case (Idealista/Zillow style).
 
-## Project scope (phase 1)
+## Project scope (phase 1 — MVP local)
 
 - Reproducible data preparation (`training/validation` -> `train/val/test`)
 - Transfer-learning training pipeline with Weights & Biases tracking
 - FastAPI inference service with Swagger docs
 - Streamlit front-end connected to the API
+
+## Roadmap (resto del enunciado / entrega final)
+
+La fase 1 cubre el stack funcionando en local. Para cumplir el proyecto completo falta:
+
+**Fase 2 — Experimentación y modelo**
+
+- Profundizar en W&B: diseño de experimentos, búsqueda de hiperparámetros, comparación de backbones (p. ej. EfficientNet vs ResNet).
+- Criterio explícito de selección del modelo final (p. ej. macro-F1 en validación + coste/tiempo).
+- Historial trazable: runs comparables, artifacts del mejor modelo, tags o convención de nombres de run.
+
+**Fase 3 — Despliegue “production-ready”**
+
+- API FastAPI **pública** con Swagger accesible (inputs, outputs, errores documentados).
+- App Streamlit **pública** conectada a esa API (no solo `localhost`).
+- Artefactos de despliegue reproducibles (p. ej. variables de entorno, URL del modelo, instrucciones de arranque).
+- *Referencia habitual:* API en Render (u otro PaaS) + Streamlit Community Cloud; ajustad si el curso indica otro proveedor.
+
+**Fase 4 — Informe y entrega formal**
+
+- Informe técnico (máx. **6 páginas**, sin portada) con: contexto de negocio (marketplace), arquitectura, enfoque de modelado, proceso de experimentación W&B, **métricas por clase** (precision/recall/F1), interpretación de matriz de confusión, conclusiones y recomendaciones de negocio.
+- Enlaces en documentación: **repositorio Git público** y **proyecto W&B**.
+- W&B: invitar a `agascon@comillas.edu` y `rkramer@comillas.edu`.
+
+Plantilla de secciones del informe: [`docs/report_outline.md`](docs/report_outline.md). Coordinación del equipo: [`tareas.md`](tareas.md).
 
 ## Classes
 
@@ -98,10 +123,22 @@ Detalle y checklist de entrega: ver [`tareas.md`](tareas.md).
 - Runs “oficiales” referenciados en W&B (nombre del run + config usada).
 - Datos y `artifacts/` locales: no commitear (ver `.gitignore`).
 
-## Delivery checklist (phase 1)
+## Delivery checklist
 
-- [ ] Reproducible setup in a clean environment
-- [ ] W&B runs with traceable configs and artifacts
-- [ ] FastAPI docs available in `/docs`
-- [ ] Streamlit app connected to API and returning predictions
+### Fase 1 (MVP local)
+
+- [ ] Setup reproducible en máquina limpia (`uv sync`, README)
+- [ ] Runs en W&B con config y artifacts trazables
+- [ ] FastAPI con Swagger en `/docs`
+- [ ] Streamlit conectada a la API y predicciones correctas en local
+
+### Entrega final (enunciado)
+
+- [ ] Codebase reproducible con instrucciones claras
+- [ ] API pública con documentación OpenAPI/Swagger y manejo de errores
+- [ ] Streamlit pública enlazada a la API (end-to-end)
+- [ ] Historial de experimentación W&B trazable y modelo final justificado
+- [ ] Informe (≤6 páginas): negocio, arquitectura, modelado, W&B, métricas por clase, matriz de confusión, API, conclusiones
+- [ ] Repo Git **público** + enlace al proyecto W&B en README o informe
+- [ ] Invitaciones W&B a `agascon@comillas.edu` y `rkramer@comillas.edu`
 
