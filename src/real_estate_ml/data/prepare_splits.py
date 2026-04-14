@@ -36,6 +36,10 @@ def prepare_splits(
 
     rng = random.Random(seed)
 
+    # Make the process idempotent: every execution starts from a clean output.
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+
     for split in ["train", "val", "test"]:
         (output_dir / split).mkdir(parents=True, exist_ok=True)
 
