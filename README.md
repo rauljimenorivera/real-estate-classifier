@@ -1,62 +1,28 @@
 # Real-Estate Image Classifier
 
-Automatic classification of real-estate images using transfer learning.
+Clasificacion automatica de imagenes inmobiliarias (15 clases) con transfer learning, tracking en W&B, API FastAPI y front en Streamlit.
 
-Built for a simulated marketplace use case (Idealista/Zillow style).
+## Que hace este repo
 
-## Project scope (phase 1 — MVP local)
+- Prepara datos reproducibles (`data/raw` -> `data/processed/{train,val,test}`).
+- Entrena modelos de vision con `timm` y registra metricas en Weights & Biases.
+- Ejecuta inferencia por API (`/predict`) y desde Streamlit.
+- Mantiene un flujo de experimentacion con configs por GPU y sweep de hiperparametros.
 
-- Reproducible data preparation (`training/validation` -> `train/val/test`)
-- Transfer-learning training pipeline with Weights & Biases tracking
-- FastAPI inference service with Swagger docs
-- Streamlit front-end connected to the API
+## Estructura principal
 
-## Roadmap (resto del enunciado / entrega final)
-
-La fase 1 cubre el stack funcionando en local. Para cumplir el proyecto completo falta:
-
-**Fase 2 — Experimentación y modelo**
-
-- Profundizar en W&B: diseño de experimentos, búsqueda de hiperparámetros, comparación de backbones (p. ej. EfficientNet vs ResNet).
-- Criterio explícito de selección del modelo final (p. ej. macro-F1 en validación + coste/tiempo).
-- Historial trazable: runs comparables, artifacts del mejor modelo, tags o convención de nombres de run.
-
-**Fase 3 — Despliegue “production-ready”**
-
-- API FastAPI **pública** con Swagger accesible (inputs, outputs, errores documentados).
-- App Streamlit **pública** conectada a esa API (no solo `localhost`).
-- Artefactos de despliegue reproducibles (p. ej. variables de entorno, URL del modelo, instrucciones de arranque).
-- *Referencia habitual:* API en Render (u otro PaaS) + Streamlit Community Cloud; ajustad si el curso indica otro proveedor.
-
-**Fase 4 — Informe y entrega formal**
-
-- Informe técnico (máx. **6 páginas**, sin portada) con: contexto de negocio (marketplace), arquitectura, enfoque de modelado, proceso de experimentación W&B, **métricas por clase** (precision/recall/F1), interpretación de matriz de confusión, conclusiones y recomendaciones de negocio.
-- Enlaces en documentación: **repositorio Git público** y **proyecto W&B**.
-- W&B: invitar a `agascon@comillas.edu` y `rkramer@comillas.edu`.
-
-Plantilla de secciones del informe: [`docs/report_outline.md`](docs/report_outline.md). Coordinación del equipo: [`tareas.md`](tareas.md).
-
-## Classes
-
-Bedroom, Coast, Forest, Highway, Industrial, Inside city, Kitchen, Living room, Mountain, Office, Open country, Store, Street, Suburb, Tall building
-
-## Repo structure
-
-- `src/real_estate_ml/data`: dataset and split preparation
-- `src/real_estate_ml/models`: transfer-learning model builders
-- `src/real_estate_ml/training`: training/evaluation engine
-- `src/real_estate_ml/inference`: shared prediction utilities
-- `src/train.py`: training entrypoint
-- `api/main.py`: FastAPI inference API
-- `app/app.py`: Streamlit UI
-- `configs/base_config.yaml`: base config for training and data
-- `configs/experiments/gtx1650.yaml`: fast config for Raul
-- `configs/experiments/rtx3070.yaml`: full config for Natalia
-- `notebooks/01_data_prep_eda.ipynb`: data prep and class distribution checks
-- `notebooks/02_training_experiments.ipynb`: interactive training + W&B
-- `notebooks/03_model_selection_eval.ipynb`: model comparison and test evaluation
-- `notebooks/04_inference_api_test.ipynb`: local inference + API test
-- `tareas.md`: coordinación del equipo, pendientes del enunciado y reparto de tareas
+- `src/prepare_data.py`: entrypoint para crear splits reproducibles.
+- `src/train.py`: entrypoint de entrenamiento (W&B, AMP, guardado de checkpoints).
+- `src/real_estate_ml/data`: dataset, transforms, dataloaders, split prep.
+- `src/real_estate_ml/models`: construccion de backbones con `timm`.
+- `src/real_estate_ml/training`: loop de train/eval y metricas.
+- `src/real_estate_ml/inference`: predictor compartido por API/Streamlit.
+- `api/main.py`: servicio FastAPI.
+- `app/app.py`: app Streamlit.
+- `configs/base_config.yaml`: baseline general.
+- `configs/experiments/*.yaml`: configuraciones concretas (GTX/RTX/big_model).
+- `configs/sweeps/big_sweep.yaml`: busqueda automatica en W&B.
+- `notebooks/01..04`: flujo de EDA, training, seleccion y test de inferencia.
 
 ## Setup
 
@@ -66,79 +32,77 @@ uv venv --python 3.11
 uv sync
 ```
 
-## Quickstart
+## Flujo rapido (end-to-end)
 
-1) Prepare processed splits:
+1) Preparar datos:
 
 ```bash
 uv run python src/prepare_data.py
 ```
 
-2) Train + track in W&B:
+2) Entrenar un modelo (ejemplo GTX):
 
 ```bash
-uv run python src/train.py --config configs/base_config.yaml
+uv run python -u src/train.py --config configs/experiments/gtx1650.yaml --wandb online
 ```
 
-Para ajustar batch/epochs según GPU, usa por ejemplo `configs/experiments/gtx1650.yaml` o `configs/experiments/rtx3070.yaml` en lugar de `base_config.yaml`.
-
-3) Run API:
+3) Levantar API:
 
 ```bash
-uv run uvicorn api.main:app --reload
+uv run uvicorn api.main:app --reload --port 8000
 ```
 
-4) Run Streamlit:
+4) Levantar Streamlit:
 
 ```bash
-uv run streamlit run app/app.py
+uv run streamlit run app/app.py --server.port 8501
 ```
 
-## Notebook-first workflow
+5) Probar:
+- Swagger: `http://127.0.0.1:8000/docs`
+- App: `http://localhost:8501`
 
-1) Run notebooks in order:
-- `01_data_prep_eda.ipynb`
-- `02_training_experiments.ipynb`
-- `03_model_selection_eval.ipynb`
-- `04_inference_api_test.ipynb`
+## Sweep (muchas combinaciones automaticas)
 
-2) Promote stable logic to `src/real_estate_ml/*`.
+Crear sweep:
 
-3) Keep API and Streamlit consuming `artifacts/best_model.pth`.
+```bash
+uv run wandb sweep configs/sweeps/big_sweep.yaml
+```
 
-## Team split (4 people)
+Lanzar agente:
 
-Detalle y checklist de entrega: ver [`tareas.md`](tareas.md).
+```bash
+uv run wandb agent --count 20 <ENTITY>/<PROJECT>/<SWEEP_ID>
+```
 
-| Persona | Rol principal |
-|--------|----------------|
-| Raúl (GTX) | Notebooks `01`, `04`; `gtx1650.yaml`; EDA e integración API/Streamlit |
-| Natalia (RTX) | Notebooks `02`, `03`; `rtx3070.yaml`; experimentos largos y modelo final en W&B |
-| Sofía | Diseño de experimentos W&B, análisis por clase, UX Streamlit y mensajes API |
-| Marta | Informe (6 pág.), README operativo, capturas Swagger, enlaces y entrega formal |
+## Gestion de checkpoints (importante)
 
-## Team workflow
+Cada run guarda su mejor modelo en:
 
-- Commits pequeños y frecuentes en `main`; avisar si dos personas editan el mismo notebook a la vez.
-- Runs “oficiales” referenciados en W&B (nombre del run + config usada).
-- Datos y `artifacts/` locales: no commitear (ver `.gitignore`).
+- `artifacts/runs/<run_id>/best_model.pth`
 
-## Delivery checklist
+Ademas, existe un "mejor global":
 
-### Fase 1 (MVP local)
+- `artifacts/best_model.pth`
+- `artifacts/best_model.json`
 
-- [ ] Setup reproducible en máquina limpia (`uv sync`, README)
-- [ ] Runs en W&B con config y artifacts trazables
-- [ ] FastAPI con Swagger en `/docs`
-- [ ] Streamlit conectada a la API y predicciones correctas en local
+`best_model.pth` solo se actualiza si el run actual supera el `best_val_macro_f1` global.
 
-### Entrega final (enunciado)
+## Notebooks (orden recomendado)
 
-- [ ] Codebase reproducible con instrucciones claras
-- [ ] API pública con documentación OpenAPI/Swagger y manejo de errores
-- [ ] Streamlit pública enlazada a la API (end-to-end)
-- [ ] Historial de experimentación W&B trazable y modelo final justificado
-- [ ] Informe (≤6 páginas): negocio, arquitectura, modelado, W&B, métricas por clase, matriz de confusión, API, conclusiones
-- [ ] Repo Git **público** + enlace al proyecto W&B en README o informe
-- [ ] Invitaciones W&B a `agascon@comillas.edu` y `rkramer@comillas.edu`
+1. `notebooks/01_data_prep_eda.ipynb`
+2. `notebooks/02_training_experiments.ipynb`
+3. `notebooks/03_model_selection_eval.ipynb`
+4. `notebooks/04_inference_api_test.ipynb`
+
+## Clases
+
+Bedroom, Coast, Forest, Highway, Industrial, Inside city, Kitchen, Living room, Mountain, Office, Open country, Store, Street, Suburb, Tall building
+
+## Entrega y documentacion
+
+- Plantilla informe: [`docs/report_outline.md`](docs/report_outline.md)
+- Coordinacion de trabajo: [`tareas.md`](tareas.md)
+- No commitear datos/modelos/runs locales (`data/`, `artifacts/`, `wandb/` en `.gitignore`)
 

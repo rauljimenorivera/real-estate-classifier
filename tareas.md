@@ -1,36 +1,41 @@
 # Tareas y estado del proyecto
 
-Mensaje de coordinación para el equipo (rama `main`).
+Estado actual: base tecnica lista (datos, entrenamiento, W&B, API y Streamlit).  
+Pendiente principal: **experimentacion final + informe**.
 
-## Resumen de lo que ya está hecho en el repo
+## Hecho
 
-- **Datos:** script/notebook para generar splits reproducibles `train` / `val` / `test` desde `data/raw/dataset/training` y `validation` (sin duplicar al repetir preparación).
-- **Entrenamiento:** pipeline con transfer learning (`timm`), métricas por clase y registro en **Weights & Biases** (entidad de equipo `202529987-universidad-pontificia-comillas`, proyecto `real-estate-classifier`). Hay un run de referencia con buen resultado en test (macro-F1 ~0.93); el detalle está en W&B, no en Git.
-- **Inferencia local:** FastAPI con `/health`, `/predict` y Swagger en `/docs`.
-- **Front:** Streamlit en `http://localhost:8501` llamando a la API.
-- **Trabajo en equipo:** notebooks numerados `01`–`04` y configs por GPU `configs/experiments/gtx1650.yaml` y `rtx3070.yaml` (README actualizado).
+- Setup reproducible con `uv`.
+- Preparacion de datos reproducible (`train/val/test`).
+- Entrenamiento con tracking en W&B (incluye sweep).
+- Guardado robusto de checkpoints:
+  - mejor por run en `artifacts/runs/<run_id>/best_model.pth`
+  - mejor global en `artifacts/best_model.pth` + `artifacts/best_model.json`
+- API FastAPI con `/health`, `/predict` y Swagger.
+- App Streamlit conectada a la API.
+- Notebooks consolidados: `01` a `04` (sin duplicados walkthrough).
 
-**Importante:** el modelo entrenado (`artifacts/best_model.pth`) y las carpetas de datos procesados **no van al repo** (están en `.gitignore`). Cada uno genera localmente con los mismos pasos.
+## Pendiente (lo importante ahora)
 
-## Cómo ponerse al día
+1. **Experimentar mas modelos en W&B** (backbones e hiperparametros) para elegir modelo final con criterio.
+2. **Ejecutar notebooks de analisis** para extraer evidencia:
+   - metricas por clase
+   - matriz de confusion
+   - comparativa de runs
+3. **Redactar informe final** (max 6 paginas) con resultados y conclusiones.
 
-1. `git pull` (desde `main`).
-2. `uv venv --python 3.11` y `.\.venv\Scripts\activate` si hace falta.
-3. `uv sync`.
-4. Seguir el **README** (preparar datos → entrenar o notebooks → API → Streamlit).
+## Reparto propuesto final
 
-## Qué queda por hacer (siguiente fase del enunciado)
+| Persona | Tarea principal |
+|--------|------------------|
+| **Raul** | Mantener pipeline estable y seguir lanzando experimentos/sweeps desde GTX. |
+| **Natalia** | Ejecutar notebooks y/o nuevos modelos (especialmente training/evaluacion). |
+| **Ruben** | Ejecutar notebooks y/o nuevos modelos; apoyar comparativa de resultados en W&B. |
+| **Marta** | Redaccion del informe final y coordinacion de la entrega. |
 
-- **Experimentación W&B en profundidad:** más runs, búsqueda de hiperparámetros, comparación de backbones, criterio explícito de modelo final (y trazabilidad en el proyecto W&B).
-- **Métricas e informe:** tabla por clase (precision/recall/F1), matriz de confusión interpretada, conclusiones y recomendaciones de negocio (marketplace inmobiliario).
-- **Despliegue “production-ready”:** API y app accesibles públicamente (cuando abráis la fase de despliegue del curso).
-- **Entrega formal:** repo público, enlaces Git + W&B en documentación, invitaciones en W&B a `agascon@comillas.edu` y `rkramer@comillas.edu`.
+## Checklist de cierre
 
-## Reparto propuesto (podemos ajustarlo en grupo)
-
-| Persona | Enfoque principal |
-|--------|-------------------|
-| **Raúl (GTX)** | Notebooks `01` y `04`, config `gtx1650.yaml`, EDA, pruebas API/Streamlit y estabilidad del flujo local. |
-| **Natalia (RTX)** | Notebooks `02` y `03`, config `rtx3070.yaml`, entrenamientos largos, tuning y elección del modelo final en W&B. |
-| **Sofía** | Diseño de experimentos en W&B, análisis de clases/desbalanceo, mejoras de producto (UX Streamlit, mensajes API, checklist de calidad). |
-| **Marta (PC más justo)** | Documentación e informe (6 páginas), README operativo, capturas Swagger, enlaces y checklist de entrega; puede coordinar redacción con datos que aportéis desde W&B/notebooks. |
+- [ ] Modelo final elegido y justificado (W&B + metrica objetivo).
+- [ ] Evidencia lista para informe (tablas/graficas por clase + confusion matrix).
+- [ ] Informe terminado y revisado en equipo.
+- [ ] README y enlaces finales (repo + proyecto W&B) validados.
