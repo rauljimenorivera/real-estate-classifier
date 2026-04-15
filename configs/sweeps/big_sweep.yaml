@@ -1,4 +1,6 @@
 program: src/train.py
+project: real-estate-classifier
+entity: 202529987-universidad-pontificia-comillas
 method: random
 metric:
   name: val/macro_f1
