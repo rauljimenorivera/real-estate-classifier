@@ -39,3 +39,16 @@ Pendiente principal: **experimentacion final + informe**.
 - [ ] Evidencia lista para informe (tablas/graficas por clase + confusion matrix).
 - [ ] Informe terminado y revisado en equipo.
 - [ ] README y enlaces finales (repo + proyecto W&B) validados.
+
+## Checklist formal de entrega (enunciado)
+
+- [ ] Repo puesto en publico.
+- [ ] URL final del repo pegada en README/informe.
+- [ ] URL final del proyecto W&B pegada en README/informe.
+- [ ] Invitaciones W&B enviadas a:
+  - [ ] agascon@comillas.edu
+  - [ ] rkramer@comillas.edu
+- [ ] Swagger accesible y validado (`/docs`).
+- [ ] Streamlit validada end-to-end contra la API.
+- [ ] (Si aplica fase de despliegue) URL publica de API.
+- [ ] (Si aplica fase de despliegue) URL publica de Streamlit.

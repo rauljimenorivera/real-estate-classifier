@@ -89,6 +89,30 @@ Ademas, existe un "mejor global":
 
 `best_model.pth` solo se actualiza si el run actual supera el `best_val_macro_f1` global.
 
+## Criterio de seleccion de modelo final
+
+El modelo final debe elegirse con criterio explicito, no solo por intuicion. Recomendacion:
+
+- Objetivo principal: maximizar `val/macro_f1`.
+- Criterios de desempate: estabilidad entre runs, coste de entrenamiento y coste de inferencia.
+- Trazabilidad: dejar referenciado en W&B el `run_id` ganador y su configuracion.
+
+## API contract (FastAPI)
+
+Endpoint principal:
+
+- `POST /predict`
+  - **Input:** `multipart/form-data` con campo `file` (imagen `jpg/jpeg/png`).
+  - **Output 200:** JSON con `filename` y `predictions` (top clases con probabilidad).
+  - **Errores:**
+    - `400`: fichero no valido / payload no imagen.
+    - `503`: modelo no cargado (checkpoint ausente o no inicializado).
+
+Estado servicio:
+
+- `GET /health` -> `status` y `model_loaded`.
+- Documentacion OpenAPI: `/docs`.
+
 ## Notebooks (orden recomendado)
 
 1. `notebooks/01_data_prep_eda.ipynb`
@@ -105,4 +129,15 @@ Bedroom, Coast, Forest, Highway, Industrial, Inside city, Kitchen, Living room, 
 - Plantilla informe: [`docs/report_outline.md`](docs/report_outline.md)
 - Coordinacion de trabajo: [`tareas.md`](tareas.md)
 - No commitear datos/modelos/runs locales (`data/`, `artifacts/`, `wandb/` en `.gitignore`)
+
+## Final deliverable checklist
+
+- [ ] Repositorio Git publico.
+- [ ] URL del repositorio incluida en README/informe.
+- [ ] URL del proyecto W&B incluida en README/informe.
+- [ ] Invitaciones enviadas en W&B a `agascon@comillas.edu` y `rkramer@comillas.edu`.
+- [ ] API con Swagger operativo y documentado.
+- [ ] Streamlit conectada a la API.
+- [ ] Historial de experimentacion trazable y modelo final justificado.
+- [ ] Informe final (max 6 paginas, sin portada) completado.
 
