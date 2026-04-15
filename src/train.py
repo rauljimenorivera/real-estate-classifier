@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 import torch
@@ -22,6 +23,12 @@ from real_estate_ml.training.engine import run_epoch
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train model")
     parser.add_argument("--config", default="configs/base_config.yaml")
+    parser.add_argument(
+        "--wandb",
+        default="offline",
+        choices=["offline", "online", "disabled"],
+        help="Weights & Biases mode. Use 'offline' to avoid login prompts.",
+    )
     return parser.parse_args()
 
 
@@ -37,12 +44,19 @@ def main():
     cfg = load_config(args.config)
 
     device = resolve_device(cfg)
-    run = wandb.init(
-        project=cfg["project_name"],
-        entity=cfg.get("entity"),
-        config=cfg,
-        job_type="train",
-    )
+    run = None
+    if args.wandb != "disabled":
+        mode = args.wandb
+        if mode == "online" and not (os.getenv("WANDB_API_KEY") or os.getenv("WANDB_ACCESS_TOKEN")):
+            print("W&B online requested but no API key found; falling back to offline.")
+            mode = "offline"
+        run = wandb.init(
+            project=cfg["project_name"],
+            entity=cfg.get("entity"),
+            config=cfg,
+            job_type="train",
+            mode=mode,
+        )
 
     dataloaders = get_dataloaders(
         data_dir=cfg["data"]["data_dir"],
@@ -82,20 +96,29 @@ def main():
         if scheduler is not None:
             scheduler.step()
 
-        wandb.log(
-            {
-                "epoch": epoch + 1,
-                "train/loss": train_metrics.loss,
-                "train/macro_f1": train_metrics.macro_f1,
-                "val/loss": val_metrics.loss,
-                "val/macro_f1": val_metrics.macro_f1,
-                "lr": optimizer.param_groups[0]["lr"],
-            }
+        lr = optimizer.param_groups[0]["lr"]
+        print(
+            f"Epoch {epoch + 1}/{cfg['training']['epochs']} | "
+            f"train_loss={train_metrics.loss:.4f} train_macro_f1={train_metrics.macro_f1:.4f} | "
+            f"val_loss={val_metrics.loss:.4f} val_macro_f1={val_metrics.macro_f1:.4f} | "
+            f"lr={lr:.2e}"
         )
+
+        if run is not None:
+            wandb.log(
+                {
+                    "epoch": epoch + 1,
+                    "train/loss": train_metrics.loss,
+                    "train/macro_f1": train_metrics.macro_f1,
+                    "val/loss": val_metrics.loss,
+                    "val/macro_f1": val_metrics.macro_f1,
+                    "lr": lr,
+                }
+            )
 
         for class_name in CLASSES:
             class_report = val_metrics.report.get(class_name, {})
-            if class_report:
+            if class_report and run is not None:
                 wandb.log(
                     {
                         f"val/{class_name}/precision": class_report.get("precision", 0.0),
@@ -126,19 +149,22 @@ def main():
     checkpoint = torch.load(best_model_path, map_location=device)
     model.load_state_dict(checkpoint["model_state_dict"])
     test_metrics = run_epoch(model, dataloaders["test"], criterion, optimizer=None, device=device, train=False)
-    wandb.log(
-        {
-            "test/loss": test_metrics.loss,
-            "test/macro_f1": test_metrics.macro_f1,
-        }
-    )
+    if run is not None:
+        wandb.log(
+            {
+                "test/loss": test_metrics.loss,
+                "test/macro_f1": test_metrics.macro_f1,
+            }
+        )
     cm_plot = ConfusionMatrixDisplay(test_metrics.confusion_matrix, display_labels=CLASSES).plot(xticks_rotation=45)
-    wandb.log({"test/confusion_matrix": wandb.Image(cm_plot.figure_)})
+    if run is not None:
+        wandb.log({"test/confusion_matrix": wandb.Image(cm_plot.figure_)})
 
-    artifact = wandb.Artifact("best-model", type="model")
-    artifact.add_file(str(best_model_path))
-    run.log_artifact(artifact)
-    run.finish()
+    if run is not None:
+        artifact = wandb.Artifact("best-model", type="model")
+        artifact.add_file(str(best_model_path))
+        run.log_artifact(artifact)
+        run.finish()
     print(f"Training finished. Best model saved at: {best_model_path}")
 
 
