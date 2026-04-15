@@ -7,17 +7,25 @@ from pathlib import Path
 import torch
 from PIL import Image
 
-from real_estate_ml.constants import IDX_TO_CLASS
 from real_estate_ml.data.dataset import get_transforms
 from real_estate_ml.models.classifier import build_model
 
 
 class Predictor:
     def __init__(self, checkpoint_path: str | Path, backbone: str, num_classes: int, device: str = "cpu", image_size: int = 224):
-        self.device = torch.device(device if torch.cuda.is_available() or device == "cpu" else "cpu")
-        self.transform = get_transforms(split="test", image_size=image_size)
-        self.model = build_model(backbone=backbone, num_classes=num_classes, pretrained=False)
+        requested_device = device
+        self.device = torch.device(requested_device if (requested_device == "cpu" or torch.cuda.is_available()) else "cpu")
+
         state = torch.load(checkpoint_path, map_location=self.device)
+        ckpt_backbone = state.get("backbone", backbone)
+        ckpt_num_classes = int(state.get("num_classes", num_classes))
+        self.classes = list(state.get("classes") or [])
+        if not self.classes:
+            # Fallback to numeric labels if checkpoint has no class names
+            self.classes = [str(i) for i in range(ckpt_num_classes)]
+
+        self.transform = get_transforms(split="test", image_size=image_size)
+        self.model = build_model(backbone=ckpt_backbone, num_classes=ckpt_num_classes, pretrained=False)
         self.model.load_state_dict(state["model_state_dict"])
         self.model.to(self.device)
         self.model.eval()
@@ -31,7 +39,7 @@ class Predictor:
 
         return [
             {
-                "class_name": IDX_TO_CLASS[index.item()],
+                "class_name": self.classes[index.item()] if 0 <= index.item() < len(self.classes) else str(index.item()),
                 "probability": round(value.item(), 6),
             }
             for value, index in zip(values, indices)

@@ -20,9 +20,21 @@ from real_estate_ml.models.classifier import build_model
 from real_estate_ml.training.engine import run_epoch
 
 
+def count_parameters(model: nn.Module) -> tuple[int, int]:
+    total = sum(p.numel() for p in model.parameters())
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    return total, trainable
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train model")
     parser.add_argument("--config", default="configs/base_config.yaml")
+    parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        help="Override config values. Repeatable. Example: --set model.backbone=convnext_large --set training.learning_rate=5e-5",
+    )
     parser.add_argument(
         "--wandb",
         default="offline",
@@ -39,17 +51,81 @@ def resolve_device(cfg: dict) -> torch.device:
     return torch.device("cpu")
 
 
+def _coerce_scalar(value: str):
+    v = value.strip()
+    if v.lower() in {"true", "false"}:
+        return v.lower() == "true"
+    if v.lower() in {"none", "null"}:
+        return None
+    try:
+        if any(ch in v for ch in [".", "e", "E"]):
+            return float(v)
+        return int(v)
+    except ValueError:
+        return v
+
+
+def apply_overrides(cfg: dict, overrides: list[str]) -> dict:
+    for item in overrides:
+        if "=" not in item:
+            raise ValueError(f"Invalid --set '{item}'. Use key.path=value")
+        key_path, raw = item.split("=", 1)
+        keys = [k for k in key_path.strip().split(".") if k]
+        if not keys:
+            raise ValueError(f"Invalid --set '{item}'. Empty key path.")
+        cur = cfg
+        for k in keys[:-1]:
+            if k not in cur or not isinstance(cur[k], dict):
+                cur[k] = {}
+            cur = cur[k]
+        cur[keys[-1]] = _coerce_scalar(raw)
+    return cfg
+
+
+def apply_wandb_sweep_overrides(cfg: dict, wb_cfg) -> dict:
+    """If running under a W&B sweep, apply common hyperparams from wandb.config.
+
+    We do this to avoid platform-specific CLI templating issues (e.g. ${var} not expanding on Windows).
+    """
+    if wb_cfg is None:
+        return cfg
+
+    mapping = {
+        "backbone": ("model", "backbone"),
+        "freeze_backbone": ("model", "freeze_backbone"),
+        "dropout": ("model", "dropout"),
+        "lr": ("training", "learning_rate"),
+        "learning_rate": ("training", "learning_rate"),
+        "weight_decay": ("training", "weight_decay"),
+        "epochs": ("training", "epochs"),
+        "batch_size": ("data", "batch_size"),
+        "image_size": ("data", "image_size"),
+        "num_workers": ("data", "num_workers"),
+    }
+
+    for src_key, dst_path in mapping.items():
+        if src_key not in wb_cfg:
+            continue
+        value = wb_cfg.get(src_key)
+        cur = cfg
+        for k in dst_path[:-1]:
+            if k not in cur or not isinstance(cur[k], dict):
+                cur[k] = {}
+            cur = cur[k]
+        cur[dst_path[-1]] = value
+
+    return cfg
+
+
 def main():
     args = parse_args()
     cfg = load_config(args.config)
+    cfg = apply_overrides(cfg, args.set)
 
     device = resolve_device(cfg)
     run = None
     if args.wandb != "disabled":
         mode = args.wandb
-        if mode == "online" and not (os.getenv("WANDB_API_KEY") or os.getenv("WANDB_ACCESS_TOKEN")):
-            print("W&B online requested but no API key found; falling back to offline.")
-            mode = "offline"
         run = wandb.init(
             project=cfg["project_name"],
             entity=cfg.get("entity"),
@@ -57,6 +133,9 @@ def main():
             job_type="train",
             mode=mode,
         )
+        # If this run is launched by a sweep agent, sweep parameters live in wandb.config.
+        # Apply them to our nested cfg dict so the rest of the script uses them.
+        cfg = apply_wandb_sweep_overrides(cfg, wandb.config)
 
     dataloaders = get_dataloaders(
         data_dir=cfg["data"]["data_dir"],
@@ -72,6 +151,11 @@ def main():
         dropout=cfg["model"]["dropout"],
         freeze_backbone=cfg["model"]["freeze_backbone"],
     ).to(device)
+    total_params, trainable_params = count_parameters(model)
+    print(f"Model: {cfg['model']['backbone']} | total_params={total_params:,} | trainable_params={trainable_params:,}")
+    if run is not None:
+        wandb.summary["model/total_params"] = total_params
+        wandb.summary["model/trainable_params"] = trainable_params
 
     optimizer = AdamW(
         model.parameters(),
@@ -82,6 +166,8 @@ def main():
     if cfg["training"]["scheduler"] == "cosine":
         scheduler = CosineAnnealingLR(optimizer, T_max=cfg["training"]["epochs"])
     criterion = nn.CrossEntropyLoss()
+    mixed_precision = bool(cfg.get("hardware", {}).get("mixed_precision", False))
+    scaler = torch.cuda.amp.GradScaler(enabled=(mixed_precision and device.type == "cuda"))
 
     best_macro_f1 = -1.0
     patience = 0
@@ -90,8 +176,25 @@ def main():
     best_model_path = save_dir / "best_model.pth"
 
     for epoch in range(cfg["training"]["epochs"]):
-        train_metrics = run_epoch(model, dataloaders["train"], criterion, optimizer, device, train=True)
-        val_metrics = run_epoch(model, dataloaders["val"], criterion, optimizer, device, train=False)
+        train_metrics = run_epoch(
+            model,
+            dataloaders["train"],
+            criterion,
+            optimizer,
+            device,
+            train=True,
+            mixed_precision=mixed_precision,
+            scaler=scaler,
+        )
+        val_metrics = run_epoch(
+            model,
+            dataloaders["val"],
+            criterion,
+            optimizer,
+            device,
+            train=False,
+            mixed_precision=mixed_precision,
+        )
 
         if scheduler is not None:
             scheduler.step()
@@ -148,7 +251,15 @@ def main():
 
     checkpoint = torch.load(best_model_path, map_location=device)
     model.load_state_dict(checkpoint["model_state_dict"])
-    test_metrics = run_epoch(model, dataloaders["test"], criterion, optimizer=None, device=device, train=False)
+    test_metrics = run_epoch(
+        model,
+        dataloaders["test"],
+        criterion,
+        optimizer=None,
+        device=device,
+        train=False,
+        mixed_precision=mixed_precision,
+    )
     if run is not None:
         wandb.log(
             {

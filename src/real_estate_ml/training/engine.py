@@ -22,7 +22,17 @@ class EpochResult:
     confusion_matrix: np.ndarray
 
 
-def run_epoch(model: nn.Module, loader: DataLoader, criterion: nn.Module, optimizer, device: torch.device, train: bool):
+def run_epoch(
+    model: nn.Module,
+    loader: DataLoader,
+    criterion: nn.Module,
+    optimizer,
+    device: torch.device,
+    train: bool,
+    *,
+    mixed_precision: bool = False,
+    scaler: torch.cuda.amp.GradScaler | None = None,
+):
     if train:
         model.train()
     else:
@@ -41,12 +51,21 @@ def run_epoch(model: nn.Module, loader: DataLoader, criterion: nn.Module, optimi
             if train:
                 optimizer.zero_grad()
 
-            logits = model(images)
-            loss = criterion(logits, labels)
+            use_amp = bool(mixed_precision and device.type == "cuda")
+            with torch.cuda.amp.autocast(enabled=use_amp):
+                logits = model(images)
+                loss = criterion(logits, labels)
 
             if train:
-                loss.backward()
-                optimizer.step()
+                if use_amp:
+                    if scaler is None:
+                        raise ValueError("mixed_precision=True requires a GradScaler instance.")
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    loss.backward()
+                    optimizer.step()
 
             running_loss += loss.item() * images.size(0)
             preds = torch.argmax(logits, dim=1)

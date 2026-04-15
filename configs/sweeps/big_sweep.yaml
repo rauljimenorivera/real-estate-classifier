@@ -1,0 +1,41 @@
+program: src/train.py
+method: random
+metric:
+  name: val/macro_f1
+  goal: maximize
+
+parameters:
+  backbone:
+    values:
+      - efficientnet_b0
+      - efficientnet_b2
+      - resnet50
+      - convnext_large
+  lr:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 3e-4
+  weight_decay:
+    distribution: log_uniform_values
+    min: 1e-6
+    max: 3e-3
+  batch_size:
+    values: [4, 8, 16]
+  freeze_backbone:
+    values: [true, false]
+
+early_terminate:
+  type: hyperband
+  min_iter: 3
+
+command:
+  - ${env}
+  - uv
+  - run
+  - python
+  - -u
+  - ${program}
+  - --config
+  - configs/experiments/gtx1650.yaml
+  - --wandb
+  - online

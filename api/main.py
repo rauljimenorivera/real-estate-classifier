@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import sys
 from pathlib import Path
 
@@ -18,9 +19,10 @@ from real_estate_ml.inference.predictor import Predictor
 
 app = FastAPI(title="Real Estate Classifier API", version="0.1.0")
 
-MODEL_PATH = Path("artifacts/best_model.pth")
-BACKBONE = "efficientnet_b0"
-NUM_CLASSES = 15
+MODEL_PATH = Path(os.getenv("MODEL_PATH", "artifacts/best_model.pth"))
+DEVICE = os.getenv("DEVICE", "cuda")
+BACKBONE = "efficientnet_b0"  # fallback (checkpoint may override)
+NUM_CLASSES = 15  # fallback (checkpoint may override)
 predictor: Predictor | None = None
 
 
@@ -32,7 +34,7 @@ def startup_event():
             checkpoint_path=MODEL_PATH,
             backbone=BACKBONE,
             num_classes=NUM_CLASSES,
-            device="cuda",
+            device=DEVICE,
         )
 
 
@@ -44,7 +46,10 @@ def health():
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     if predictor is None:
-        raise HTTPException(status_code=503, detail="Model not loaded. Train model first.")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Model not loaded. Expected checkpoint at '{MODEL_PATH.as_posix()}'. Train model first.",
+        )
 
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Input file must be an image.")
