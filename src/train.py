@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import json
 from pathlib import Path
 
 import torch
@@ -171,83 +172,133 @@ def main():
 
     best_macro_f1 = -1.0
     patience = 0
-    save_dir = Path(cfg["training"]["save_dir"])
-    save_dir.mkdir(parents=True, exist_ok=True)
-    best_model_path = save_dir / "best_model.pth"
+    base_save_dir = Path(cfg["training"]["save_dir"])
+    base_save_dir.mkdir(parents=True, exist_ok=True)
+    run_id = (getattr(run, "id", None) or getattr(wandb, "run", None) and wandb.run and wandb.run.id) or "local"
+    run_save_dir = base_save_dir / "runs" / str(run_id)
+    run_save_dir.mkdir(parents=True, exist_ok=True)
 
-    for epoch in range(cfg["training"]["epochs"]):
-        train_metrics = run_epoch(
-            model,
-            dataloaders["train"],
-            criterion,
-            optimizer,
-            device,
-            train=True,
-            mixed_precision=mixed_precision,
-            scaler=scaler,
-        )
-        val_metrics = run_epoch(
-            model,
-            dataloaders["val"],
-            criterion,
-            optimizer,
-            device,
-            train=False,
-            mixed_precision=mixed_precision,
-        )
+    # Per-run best checkpoint (never overwritten by other runs)
+    best_model_path = run_save_dir / "best_model.pth"
+    # Global best pointer for the whole project (optional, only updated if better)
+    global_best_path = base_save_dir / "best_model.pth"
+    global_best_meta = base_save_dir / "best_model.json"
 
-        if scheduler is not None:
-            scheduler.step()
-
-        lr = optimizer.param_groups[0]["lr"]
-        print(
-            f"Epoch {epoch + 1}/{cfg['training']['epochs']} | "
-            f"train_loss={train_metrics.loss:.4f} train_macro_f1={train_metrics.macro_f1:.4f} | "
-            f"val_loss={val_metrics.loss:.4f} val_macro_f1={val_metrics.macro_f1:.4f} | "
-            f"lr={lr:.2e}"
-        )
-
-        if run is not None:
-            wandb.log(
-                {
-                    "epoch": epoch + 1,
-                    "train/loss": train_metrics.loss,
-                    "train/macro_f1": train_metrics.macro_f1,
-                    "val/loss": val_metrics.loss,
-                    "val/macro_f1": val_metrics.macro_f1,
-                    "lr": lr,
-                }
+    try:
+        for epoch in range(cfg["training"]["epochs"]):
+            train_metrics = run_epoch(
+                model,
+                dataloaders["train"],
+                criterion,
+                optimizer,
+                device,
+                train=True,
+                mixed_precision=mixed_precision,
+                scaler=scaler,
+            )
+            val_metrics = run_epoch(
+                model,
+                dataloaders["val"],
+                criterion,
+                optimizer,
+                device,
+                train=False,
+                mixed_precision=mixed_precision,
             )
 
-        for class_name in CLASSES:
-            class_report = val_metrics.report.get(class_name, {})
-            if class_report and run is not None:
+            if scheduler is not None:
+                scheduler.step()
+
+            lr = optimizer.param_groups[0]["lr"]
+            print(
+                f"Epoch {epoch + 1}/{cfg['training']['epochs']} | "
+                f"train_loss={train_metrics.loss:.4f} train_macro_f1={train_metrics.macro_f1:.4f} | "
+                f"val_loss={val_metrics.loss:.4f} val_macro_f1={val_metrics.macro_f1:.4f} | "
+                f"lr={lr:.2e}"
+            )
+
+            if run is not None:
                 wandb.log(
                     {
-                        f"val/{class_name}/precision": class_report.get("precision", 0.0),
-                        f"val/{class_name}/recall": class_report.get("recall", 0.0),
-                        f"val/{class_name}/f1-score": class_report.get("f1-score", 0.0),
+                        "epoch": epoch + 1,
+                        "train/loss": train_metrics.loss,
+                        "train/macro_f1": train_metrics.macro_f1,
+                        "val/loss": val_metrics.loss,
+                        "val/macro_f1": val_metrics.macro_f1,
+                        "lr": lr,
                     }
                 )
 
-        if val_metrics.macro_f1 > best_macro_f1:
-            best_macro_f1 = val_metrics.macro_f1
-            patience = 0
-            torch.save(
-                {
+            for class_name in CLASSES:
+                class_report = val_metrics.report.get(class_name, {})
+                if class_report and run is not None:
+                    wandb.log(
+                        {
+                            f"val/{class_name}/precision": class_report.get("precision", 0.0),
+                            f"val/{class_name}/recall": class_report.get("recall", 0.0),
+                            f"val/{class_name}/f1-score": class_report.get("f1-score", 0.0),
+                        }
+                    )
+
+            if val_metrics.macro_f1 > best_macro_f1:
+                best_macro_f1 = val_metrics.macro_f1
+                patience = 0
+                payload = {
                     "model_state_dict": model.state_dict(),
                     "backbone": cfg["model"]["backbone"],
                     "num_classes": cfg["data"]["num_classes"],
                     "classes": CLASSES,
-                },
-                best_model_path,
-            )
-        else:
-            patience += 1
+                    "best_val_macro_f1": float(best_macro_f1),
+                    "run_id": str(run_id),
+                }
+                torch.save(
+                    {
+                        **payload,
+                    },
+                    best_model_path,
+                )
 
-        if patience >= cfg["training"]["early_stopping_patience"]:
-            print("Early stopping triggered.")
-            break
+                # Update global best only if this run beats the previous global best
+                prev_best = None
+                if global_best_meta.exists():
+                    try:
+                        prev_best = json.loads(global_best_meta.read_text(encoding="utf-8")).get("best_val_macro_f1")
+                    except Exception:
+                        prev_best = None
+                if prev_best is None or float(best_macro_f1) > float(prev_best):
+                    torch.save(payload, global_best_path)
+                    global_best_meta.write_text(
+                        json.dumps(
+                            {
+                                "best_val_macro_f1": float(best_macro_f1),
+                                "run_id": str(run_id),
+                                "checkpoint": global_best_path.as_posix(),
+                                "source_checkpoint": best_model_path.as_posix(),
+                                "backbone": cfg["model"]["backbone"],
+                            },
+                            indent=2,
+                        ),
+                        encoding="utf-8",
+                    )
+            else:
+                patience += 1
+
+            # Sweep agent can request stop; exit gracefully to avoid noisy stack traces
+            if run is not None and getattr(run, "should_stop", False):
+                print("STOP REASON: W&B sweep (early_terminate) requested stop. This was NOT a manual Ctrl+C.")
+                wandb.summary["stopped_by_sweep"] = True
+                break
+
+            if patience >= cfg["training"]["early_stopping_patience"]:
+                print("Early stopping triggered.")
+                break
+    except KeyboardInterrupt:
+        # On Windows, sweep stop can surface as KeyboardInterrupt (e.g. while spawning DataLoader workers).
+        print("STOP REASON: KeyboardInterrupt (very likely W&B sweep stop, not you). Ending run gracefully.")
+        if run is not None:
+            wandb.summary["stopped_by_sweep"] = True
+            run.finish(exit_code=0)
+        return
 
     checkpoint = torch.load(best_model_path, map_location=device)
     model.load_state_dict(checkpoint["model_state_dict"])
@@ -276,7 +327,9 @@ def main():
         artifact.add_file(str(best_model_path))
         run.log_artifact(artifact)
         run.finish()
-    print(f"Training finished. Best model saved at: {best_model_path}")
+    print(f"Training finished. Run-best model saved at: {best_model_path}")
+    if global_best_path.exists():
+        print(f"Global-best pointer (artifacts) at: {global_best_path}")
 
 
 if __name__ == "__main__":
