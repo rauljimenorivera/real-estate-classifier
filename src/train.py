@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import json
+from datetime import datetime
 from pathlib import Path
 
 import torch
@@ -118,6 +119,12 @@ def apply_wandb_sweep_overrides(cfg: dict, wb_cfg) -> dict:
     return cfg
 
 
+def build_wandb_run_name(config_path: str, run_id: str) -> str:
+    config_stem = Path(config_path).stem
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return f"{config_stem}-{timestamp}-{run_id}"
+
+
 def main():
     args = parse_args()
     cfg = load_config(args.config)
@@ -134,6 +141,9 @@ def main():
             job_type="train",
             mode=mode,
         )
+        run_name = build_wandb_run_name(args.config, run.id)
+        run.name = run_name
+        print(f"W&B run name: {run_name}")
         # If this run is launched by a sweep agent, sweep parameters live in wandb.config.
         # Apply them to our nested cfg dict so the rest of the script uses them.
         cfg = apply_wandb_sweep_overrides(cfg, wandb.config)
