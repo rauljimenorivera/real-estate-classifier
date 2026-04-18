@@ -17,6 +17,7 @@ from real_estate_ml.constants import CLASSES
 @dataclass
 class EpochResult:
     loss: float
+    accuracy: float
     macro_f1: float
     report: dict
     confusion_matrix: np.ndarray
@@ -73,6 +74,7 @@ def run_epoch(
             all_preds.extend(preds.cpu().tolist())
 
     avg_loss = running_loss / max(1, len(loader.dataset))
+    accuracy = float(np.mean(np.array(all_labels) == np.array(all_preds))) if all_labels else 0.0
     macro_f1 = f1_score(all_labels, all_preds, average="macro", zero_division=0)
     report = classification_report(
         all_labels,
@@ -84,5 +86,5 @@ def run_epoch(
     )
     cm = confusion_matrix(all_labels, all_preds, labels=list(range(len(CLASSES))))
 
-    return EpochResult(loss=avg_loss, macro_f1=macro_f1, report=report, confusion_matrix=cm)
+    return EpochResult(loss=avg_loss, accuracy=accuracy, macro_f1=macro_f1, report=report, confusion_matrix=cm)
 

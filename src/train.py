@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import json
 from datetime import datetime
 from pathlib import Path
@@ -222,8 +221,8 @@ def main():
             lr = optimizer.param_groups[0]["lr"]
             print(
                 f"Epoch {epoch + 1}/{cfg['training']['epochs']} | "
-                f"train_loss={train_metrics.loss:.4f} train_macro_f1={train_metrics.macro_f1:.4f} | "
-                f"val_loss={val_metrics.loss:.4f} val_macro_f1={val_metrics.macro_f1:.4f} | "
+                f"train_loss={train_metrics.loss:.4f} train_acc={train_metrics.accuracy:.4f} train_macro_f1={train_metrics.macro_f1:.4f} | "
+                f"val_loss={val_metrics.loss:.4f} val_acc={val_metrics.accuracy:.4f} val_macro_f1={val_metrics.macro_f1:.4f} | "
                 f"lr={lr:.2e}"
             )
 
@@ -231,24 +230,12 @@ def main():
                 wandb.log(
                     {
                         "epoch": epoch + 1,
-                        "train/loss": train_metrics.loss,
+                        "train/accuracy": train_metrics.accuracy,
                         "train/macro_f1": train_metrics.macro_f1,
-                        "val/loss": val_metrics.loss,
+                        "val/accuracy": val_metrics.accuracy,
                         "val/macro_f1": val_metrics.macro_f1,
-                        "lr": lr,
                     }
                 )
-
-            for class_name in CLASSES:
-                class_report = val_metrics.report.get(class_name, {})
-                if class_report and run is not None:
-                    wandb.log(
-                        {
-                            f"val/{class_name}/precision": class_report.get("precision", 0.0),
-                            f"val/{class_name}/recall": class_report.get("recall", 0.0),
-                            f"val/{class_name}/f1-score": class_report.get("f1-score", 0.0),
-                        }
-                    )
 
             if val_metrics.macro_f1 > best_macro_f1:
                 best_macro_f1 = val_metrics.macro_f1
@@ -321,16 +308,15 @@ def main():
         train=False,
         mixed_precision=mixed_precision,
     )
+    cm_plot = ConfusionMatrixDisplay(test_metrics.confusion_matrix, display_labels=CLASSES).plot(xticks_rotation=45)
     if run is not None:
         wandb.log(
             {
-                "test/loss": test_metrics.loss,
+                "test/accuracy": test_metrics.accuracy,
                 "test/macro_f1": test_metrics.macro_f1,
+                "test/confusion_matrix": wandb.Image(cm_plot.figure_),
             }
         )
-    cm_plot = ConfusionMatrixDisplay(test_metrics.confusion_matrix, display_labels=CLASSES).plot(xticks_rotation=45)
-    if run is not None:
-        wandb.log({"test/confusion_matrix": wandb.Image(cm_plot.figure_)})
 
     if run is not None:
         artifact = wandb.Artifact("best-model", type="model")
