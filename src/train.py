@@ -312,6 +312,7 @@ def main():
     if run is not None:
         wandb.log(
             {
+                "test/loss": test_metrics.loss,
                 "test/accuracy": test_metrics.accuracy,
                 "test/macro_f1": test_metrics.macro_f1,
                 "test/confusion_matrix": wandb.Image(cm_plot.figure_),
