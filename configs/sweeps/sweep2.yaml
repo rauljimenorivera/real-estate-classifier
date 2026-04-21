@@ -1,0 +1,57 @@
+name: sweep2
+program: src/train.py
+project: real-estate-classifier
+entity: 202529987-universidad-pontificia-comillas
+method: bayes
+metric:
+  name: val/macro_f1
+  goal: maximize
+
+early_terminate:
+  type: hyperband
+  min_iter: 5
+  eta: 3
+
+parameters:
+  model.backbone:
+    values: [efficientnet_b0, efficientnet_b2]
+
+  training.learning_rate:
+    distribution: log_uniform_values
+    min: 5e-6
+    max: 2e-4
+
+  training.weight_decay:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-2
+
+  model.dropout:
+    values: [0.1, 0.3, 0.5]
+
+  data.batch_size:
+    values: [16, 32]
+
+  model.freeze_backbone:
+    values: [false, true]
+
+  training.scheduler:
+    value: cosine
+
+  training.epochs:
+    value: 30
+
+  training.early_stopping_patience:
+    value: 7
+
+command:
+  - ${env}
+  - uv
+  - run
+  - python
+  - -u
+  - ${program}
+  - --config
+  - configs/experiments/gtx1650.yaml
+  - --wandb
+  - online
