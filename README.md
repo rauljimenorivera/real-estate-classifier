@@ -7,6 +7,7 @@ Clasificacion automatica de imagenes inmobiliarias (15 clases) con transfer lear
 - Prepara datos reproducibles (`data/raw` -> `data/processed/{train,val,test}`).
 - Entrena modelos de vision con `timm` y registra metricas en Weights & Biases.
 - Ejecuta inferencia por API (`/predict`) y desde Streamlit.
+- Permite seleccionar y cargar en caliente cualquier modelo (checkpoint local o artefacto W&B) desde la UI de Streamlit o via API, sin reiniciar el servicio.
 - Mantiene un flujo de experimentacion con configs por GPU y sweep de hiperparametros.
 
 ## Estructura principal
@@ -62,6 +63,15 @@ uv run streamlit run app/app.py --server.port 8501
 - Swagger: `http://127.0.0.1:8000/docs`
 - App: `http://localhost:8501`
 
+### Uso de la app Streamlit
+
+La app permite:
+
+1. **Seleccionar la fuente del modelo** — radio "W&B artifact" o "Local checkpoint".
+2. **Listar artefactos de W&B** — introduce entity y proyecto y pulsa *Refresh W&B models*; se consulta `GET /models` y se muestra un dropdown con todas las versiones disponibles.
+3. **Cargar el modelo elegido** — pulsa *Load selected model*; llama a `POST /load-model` con la referencia del artefacto o la ruta local. El modelo se carga en caliente sin reiniciar la API.
+4. **Clasificar una imagen** — sube una imagen (`jpg/jpeg/png`) y pulsa *Predict*; devuelve las 3 clases mas probables con sus probabilidades.
+
 ## Sweep (muchas combinaciones automaticas)
 
 Crear sweep:
@@ -99,19 +109,46 @@ El modelo final debe elegirse con criterio explicito, no solo por intuicion. Rec
 
 ## API contract (FastAPI)
 
-Endpoint principal:
+### `POST /predict`
 
-- `POST /predict`
-  - **Input:** `multipart/form-data` con campo `file` (imagen `jpg/jpeg/png`).
-  - **Output 200:** JSON con `filename` y `predictions` (top clases con probabilidad).
-  - **Errores:**
-    - `400`: fichero no valido / payload no imagen.
-    - `503`: modelo no cargado (checkpoint ausente o no inicializado).
+Clasificacion de una imagen con el modelo actualmente cargado.
 
-Estado servicio:
+- **Input:** `multipart/form-data` con campo `file` (imagen `jpg/jpeg/png`).
+- **Output 200:** JSON con `filename` y `predictions` (top-3 clases con probabilidad).
+- **Errores:**
+  - `400`: fichero no valido / payload no imagen.
+  - `503`: modelo no cargado (checkpoint ausente o no inicializado).
 
-- `GET /health` -> `status` y `model_loaded`.
-- Documentacion OpenAPI: `/docs`.
+### `POST /load-model`
+
+Carga o cambia el modelo en caliente sin reiniciar el servicio.
+
+- **Input JSON:** uno (y solo uno) de los dos campos:
+  - `model_path` (string): ruta local al checkpoint `.pth` (ej. `"artifacts/best_model.pth"`).
+  - `artifact_ref` (string): referencia a un artefacto W&B (ej. `"entity/project/best-model:v12"`).
+- **Output 200:** `{"status": "ok", "model_loaded": true, "model_source": "<local|wandb>:<ref>"}`.
+- **Errores:**
+  - `400`: se pasan los dos campos a la vez, ruta no encontrada, o error al descargar el artefacto.
+
+### `GET /models`
+
+Lista los artefactos de tipo `model` disponibles en un proyecto W&B.
+
+- **Query params:**
+  - `entity` (opcional): W&B entity. Si no se pasa, se usa la variable de entorno `WANDB_ENTITY`.
+  - `project` (opcional): W&B project. Si no se pasa, se usa `WANDB_PROJECT`.
+  - `limit` (opcional, default 100, max 500): numero maximo de versiones a devolver.
+- **Output 200:** `{"entity": "...", "project": "...", "count": N, "models": ["entity/project/name:vX", ...]}`.
+- **Errores:**
+  - `400`: entity o project no resueltos, o error al conectar con W&B.
+
+### `GET /health`
+
+Estado del servicio.
+
+- **Output 200:** `{"status": "ok", "model_loaded": true|false, "model_source": "<ref o null>"}`.
+
+Documentacion OpenAPI interactiva: `/docs`.
 
 ## Notebooks (orden recomendado)
 
