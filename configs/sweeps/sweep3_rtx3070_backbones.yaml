@@ -1,0 +1,54 @@
+name: sweep3_rtx3070_backbones
+program: src/train.py
+project: real-estate-classifier
+entity: 202529987-universidad-pontificia-comillas
+method: bayes
+metric:
+  name: val/macro_f1
+  goal: maximize
+
+# No early_terminate: each run stops only via model early stopping.
+parameters:
+  backbone:
+    values:
+      - efficientnet_b1
+      - efficientnet_b2
+      - resnet50
+      - densenet121
+
+  lr:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 3e-4
+
+  weight_decay:
+    distribution: log_uniform_values
+    min: 1e-6
+    max: 3e-3
+
+  batch_size:
+    values: [16, 24, 32]
+
+  freeze_backbone:
+    values: [false, true]
+
+  dropout:
+    values: [0.2, 0.3, 0.4, 0.5]
+
+  epochs:
+    value: 40
+
+  num_workers:
+    value: 4
+
+command:
+  - ${env}
+  - uv
+  - run
+  - python
+  - -u
+  - ${program}
+  - --config
+  - configs/experiments/rtx3070.yaml
+  - --wandb
+  - online
